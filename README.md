@@ -1,0 +1,1 @@
+How to add command line control for a daemon by unix socket.
