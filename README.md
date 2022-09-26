@@ -1,1 +1,2 @@
-How to add command line control for a daemon by unix socket.
+# daemon_cli
+A simple daemon example

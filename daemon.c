@@ -2,6 +2,13 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <signal.h>
+#include <sys/select.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include "cmdsocket.h"
+#include "command.h"
 
 static char *cmd_file = NULL;
 static int cmd_fd = -1;
@@ -34,7 +41,7 @@ static void handle_signal(int sig)
     }
 }
 
-static cleanup(void)
+static void cleanup(void)
 {
     if (cmd_file) {
         if (cmd_fd != -1)
@@ -47,6 +54,14 @@ static cleanup(void)
         unlink(pid_file);
 }
 
+static int write_pidfile(char *pidfile)
+{
+    FILE *pid = fopen(pidfile, "w+");
+    if (pid == NULL)
+        return 1;
+    fprintf(pid, "%u\n", (unsigned int)getpid());
+    return fclose(pid);
+}
 int main(int argc, char *argv[])
 {
     int c, option_index = 0;
@@ -78,4 +93,48 @@ int main(int argc, char *argv[])
     handler.sa_flags = 0;
     sigaction(SIGINT, &handler, 0);
     sigaction(SIGTERM, &handler, 0);
+
+    if (cmd_file) {
+        cmd_fd = bind_cmdsocket(cmd_file);
+        if (cmd_fd < 0)
+            return 1;
+    }
+
+    if (run_as_daemon) {
+        int err = daemon(0, 0);
+        if (err) {
+            perror("daemon()");
+        }
+    }
+
+    if (pid_file)
+        write_pidfile(pid_file);
+
+    fd_set rfds;
+    int max_fd = -1;
+    struct timeval tv;
+    int retval;
+    while(cmd_fd != -1) {
+        FD_ZERO(&rfds);
+        if (cmd_fd != -1) {
+            FD_SET(cmd_fd, &rfds);
+            max_fd = cmd_fd > max_fd ? cmd_fd : max_fd;
+            tv.tv_sec = 5;
+            tv.tv_usec = 0;
+            retval = select(max_fd + 1, &rfds, NULL, NULL, &tv);
+            if (retvl == -1 && errno != EINTR) {
+                perror("select()");
+                continue;
+            } else if (exiting) {
+                break;
+            } else if (retval) {
+                // do the real job
+                // ...
+
+                if (cmd_fd != -1 && FD_ISSET(cmd_fd, &rfds)) {
+                    
+                }
+            }
+        }
+    }
 }
