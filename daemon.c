@@ -9,9 +9,10 @@
 #include <errno.h>
 #include <stdlib.h>
 
+#include "log.h"
+#include "pid.h"
 #include "cmdsocket.h"
 #include "command.h"
-#include "log.h"
 
 static char *cmd_file = NULL;
 static int cmd_fd = -1;
@@ -25,11 +26,11 @@ static int exiting = 0;
 
 static void show_help(void)
 {
-	fprintf(stderr, "Usage:\n" );
-	fprintf(stderr, "  --daemon           Run as daemon process\n" );
-	fprintf(stderr, "  --socket <socket>  Read commands from socket\n" );
-    fprintf(stderr, "  --log <filename>   Log to file\n" );
-    fprintf(stderr, "  --verbose          Enable verbose mode\n" );
+	log_error("Usage:\n" );
+	log_error("  --daemon           Run as daemon process\n" );
+	log_error("  --socket <socket>  Read commands from socket\n" );
+    log_error("  --log <filename>   Log to file\n" );
+    log_error("  --verbose          Enable verbose mode\n" );
 }
 
 static void handle_signal(int sig)
@@ -59,15 +60,6 @@ void cleanup(void)
         unlink(pid_file);
 }
 
-static int write_pidfile(const char *pid_file)
-{
-    FILE *pid = fopen(pid_file, "w+");
-    if (pid == NULL)
-        return -1;
-    fprintf(pid, "%u\n", (unsigned int)getpid());
-    return fclose(pid);
-}
-
 static int init_logger(const char *log_file, int verbose)
 {
     if (log_file == NULL) {
@@ -78,7 +70,7 @@ static int init_logger(const char *log_file, int verbose)
         FILE *fp;
         fp = fopen(log_file, "w");
         if(fp == NULL) {
-            fprintf(stderr, "fopen() fail:%s\n", log_file);
+            log_error("fopen() fail:%s\n", log_file);
             return -1;
         }
         log_add_fp(fp, verbose > 0 ? LOG_DEBUG : LOG_INFO);
@@ -126,6 +118,10 @@ int main(int argc, char *argv[])
                 return 1;
         }
     }
+    init_logger(log_file, verbose);
+    log_debug("msg1");
+    log_info("msg2");
+    log_warn("msg3");
 
     struct sigaction handler;
     handler.sa_handler = handle_signal;
@@ -137,25 +133,20 @@ int main(int argc, char *argv[])
     if (cmd_file) {
         cmd_fd = bind_cmdsocket(cmd_file);
         if (cmd_fd < 0) {
-            fprintf(stderr, "bind_cmdsocket()\n");
+            log_error("bind_cmdsocket()\n");
             return 1;
         }
     }
 
     if (run_as_daemon) {
-        int err = daemon(0, 0);
-        if (err) {
-            perror("daemon()");
-        }
+        if (daemon(0, 0))
+            log_error("daemon()");
     }
 
-    if (pid_file)
-        write_pidfile(pid_file);
-
-    init_logger(log_file, verbose);
-    log_debug("msg1");
-    log_info("msg2");
-    log_warn("msg3");
+    if (pid_file) {
+        if (create_pid_file(argv[0], pid_file, 0) == -1)
+            log_error("create_pid_file()");
+    }
     
     fd_set rfds;
     int max_fd = -1;
