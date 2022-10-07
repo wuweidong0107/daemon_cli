@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <errno.h>
+#include <stdlib.h>
 
 #include "cmdsocket.h"
 #include "command.h"
@@ -22,22 +23,13 @@ static int log_fd = -1;
 
 static int exiting = 0;
 
-static struct option long_options[] = {
-    {"daemon", no_argument, &run_as_daemon, 1},
-    {"pid", required_argument, 0, 'p'},
-    {"socket", required_argument, 0, 's'},
-    {"log", required_argument, 0, 'l'},
-    {"verbose", no_argument, 0, 'v'},
-    {0, 0, 0, 0}
-};
-
 static void show_help(void)
 {
-	printf( "Usage:\n" );
-	printf( "  --daemon           Run as daemon process\n" );
-	printf( "  --socket <socket>  Read commands from socket\n" );
-    printf( "  --log <filename>   Log to file\n" );
-    printf( "  --verbose          Enable verbose mode\n" );
+	fprintf(stderr, "Usage:\n" );
+	fprintf(stderr, "  --daemon           Run as daemon process\n" );
+	fprintf(stderr, "  --socket <socket>  Read commands from socket\n" );
+    fprintf(stderr, "  --log <filename>   Log to file\n" );
+    fprintf(stderr, "  --verbose          Enable verbose mode\n" );
 }
 
 static void handle_signal(int sig)
@@ -52,7 +44,7 @@ static void handle_signal(int sig)
     }
 }
 
-static void cleanup(void)
+void cleanup(void)
 {
     log_info("cleanup...");
 
@@ -99,6 +91,15 @@ int main(int argc, char *argv[])
     int c, option_index = 0;
     int verbose = 0;
     char *log_file = NULL;
+
+    struct option long_options[] = {
+        {"daemon", no_argument, &run_as_daemon, 1},
+        {"pid", required_argument, 0, 'p'},
+        {"socket", required_argument, 0, 's'},
+        {"log", required_argument, 0, 'l'},
+        {"verbose", no_argument, 0, 'v'},
+        {0, 0, 0, 0}
+    };
 
     while ((c = getopt_long(argc, argv, "dhp:s:l:v", long_options, &option_index)) != -1) {
         switch(c) {
@@ -176,9 +177,12 @@ int main(int argc, char *argv[])
             } else if (retval) {
                 // do the real job
                 // ...
-
                 if (cmd_fd != -1 && FD_ISSET(cmd_fd, &rfds)) {
-                    
+                    struct command *cmd = read_command(cmd_fd);
+                    if (cmd != NULL) {
+                        run_command(cmd);
+                        free(cmd);
+                    }
                 }
             }
         }

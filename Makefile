@@ -1,9 +1,12 @@
-TARGET=daemon
+TARGET=daemon daemon-client
 
 all: $(TARGET)
 
 daemon: daemon.c cmdsocket.c command.c log.c
 	gcc $^ -o $@
 
+daemon-client: daemon-client.c cmdsocket.c log.c
+	gcc $^ -o $@
+
 clean:
-	rm -f daemon
+	rm -f ./daemon ./daemon-client
